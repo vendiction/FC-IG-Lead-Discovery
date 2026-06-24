@@ -1,0 +1,100 @@
+
+# ============================================================================
+# FC IG Lead Discovery — Docker Compose
+#
+# Services:
+#   api          — FastAPI app (webhooks, dashboard backend, internal endpoints)
+#   worker_disc  — Discovery workers (M1 tagged crawler + M2 hashtag scraper)
+#   worker_qual  — Qualifier + cross-platform research (M3 + M4)
+#   worker_warm  — Warm-up action executor (M5)
+#   worker_conv  — Conversational engine — DM poller + agent loop (M7)
+#   scheduler    — APScheduler for cron jobs (followups, daily metrics, etc.)
+#   discord_bot  — Discord bot for HiTL queue + handoffs (M8)
+#
+# All services share the same image; CMD overrides specify which loop to run.
+# ============================================================================
+
+x-common: &common
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  env_file: .env
+  restart: unless-stopped
+  networks:
+    - fc_internal
+  volumes:
+    - ./app:/app/app:ro
+    - ./scripts:/app/scripts:ro
+    - ./tests:/app/tests:ro
+    - ig_sessions:/app/ig_sessions
+
+services:
+  api:
+    <<: *common
+    container_name: fc_ig_api
+    ports:
+      - "127.0.0.1:8001:8000"         # expose to localhost only; nginx terminates TLS
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000
+
+  worker_disc:
+    <<: *common
+    container_name: fc_ig_worker_disc
+    command: python -m app.modules.workers.discovery_worker
+    depends_on:
+      - api
+
+  worker_qual:
+    <<: *common
+    container_name: fc_ig_worker_qual
+    command: python -m app.modules.workers.qualifier_worker
+    depends_on:
+      - api
+
+  worker_warm:
+    <<: *common
+    container_name: fc_ig_worker_warm
+    command: python -m app.modules.m5_warmup.worker
+    depends_on:
+      - api
+
+  worker_conv:
+    <<: *common
+    container_name: fc_ig_worker_conv
+    command: python -m app.modules.m7_conversation.worker
+    depends_on:
+      - api
+
+  worker_opener:
+    <<: *common
+    container_name: fc_ig_worker_opener
+    command: python -m app.modules.m6_opener.sender
+    depends_on:
+      - api
+
+  worker_opener_gen:
+    <<: *common
+    container_name: fc_ig_worker_opener_gen
+    command: python -m app.modules.m6_opener_generator.worker
+    depends_on:
+      - api
+
+  scheduler:
+    <<: *common
+    container_name: fc_ig_scheduler
+    command: python -m app.core.scheduler
+    depends_on:
+      - api
+
+  discord_bot:
+    <<: *common
+    container_name: fc_ig_discord
+    command: python -m app.modules.m8_handoff.discord_bot
+    depends_on:
+      - api
+
+networks:
+  fc_internal:
+    driver: bridge
+
+volumes:
+  ig_sessions:
