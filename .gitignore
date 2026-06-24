@@ -1,0 +1,28 @@
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Environment — NEVER commit
+.env
+.env.local
+*.local
+
+# IG sessions (encrypted cookies; never commit even encrypted)
+ig_sessions/
+**/ig_sessions/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
